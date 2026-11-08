@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Chess app icon: the knight from this app's own piece set (GPL-3.0-or-later, like the rest of the repo). -->
+  <rect width="512" height="512" fill="#0d1117"/>
+  <g transform="translate(106 96) scale(3)">
+    <g fill="#f8f6f0" stroke="#58a6ff" stroke-width="3.5" stroke-linejoin="round">
+      <rect x="22" y="76" width="56" height="11" rx="3"/>
+      <path d="M32 76 C33 66 39 60 46 56 C39 56 31 58 27 54 C24 51 25 46 29 43 L45 30 L47 18 L55 26 C67 31 73 47 70 76 Z"/>
+    </g>
+    <g fill="#0d1117" stroke="#0d1117">
+      <circle cx="46" cy="37" r="3"/>
+      <path d="M56 30 C62 38 64 50 63 62" fill="none" stroke-width="4" stroke-linecap="round"/>
+    </g>
+  </g>
+</svg>

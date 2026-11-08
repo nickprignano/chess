@@ -40,5 +40,6 @@ Four rules after the community "Karpathy guidelines" (MIT), reworded for agents 
 ## Checks to run
 
 ```bash
+node tools/sw-version.mjs   # after changing any file the site serves
 node --test
 ```

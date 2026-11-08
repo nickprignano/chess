@@ -1,0 +1,10 @@
+# Files in the repo that the site doesn't serve (Cloudflare reads this when deploying).
+.git
+.wrangler
+.github
+.assetsignore
+wrangler.jsonc
+docs
+test
+tools
+.gitignore
