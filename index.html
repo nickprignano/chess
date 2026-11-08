@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Chess</title>
+  <meta name="description" content="Open-source chess in the browser. Two players on one device for now; a computer opponent at your level and a coach are coming.">
+  <meta name="theme-color" content="#0d1117">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Chess">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <script>
+    // Apply the saved light/dark choice before the first paint, like prignano-theme's THEME_INIT_SCRIPT.
+    (function () { try { var m = document.cookie.match(/(?:^|; )theme=(light|dark)/); var t = m ? m[1] : localStorage.getItem('theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {} })();
+  </script>
+  <link rel="stylesheet" href="styles.css">
+  <!-- The shared site theme. If it can't load, styles.css has the same colors as a fallback. -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/nickprignano/prignano-theme@4c2effc3829269e40ad663baf130a6b899a402bb/theme.css">
+</head>
+<body>
+  <div id="site-header"></div>
+  <main id="app">
+    <div class="bar" role="toolbar" aria-label="Game controls">
+      <p class="status" id="status" aria-live="polite">White to move.</p>
+      <button type="button" id="btn-menu">Menu</button>
+      <button type="button" id="btn-undo" aria-label="Take back the last move">Undo</button>
+      <button type="button" id="btn-flip" aria-label="Turn the board around">Flip</button>
+      <button type="button" id="btn-mute" aria-label="Mute sound" aria-pressed="false">Sound</button>
+      <button type="button" id="btn-header" aria-label="Hide the site header" aria-expanded="true">▴</button>
+    </div>
+    <div class="play">
+      <div class="board-wrap"><svg id="board" class="board" xmlns="http://www.w3.org/2000/svg"></svg></div>
+      <ol id="moves" class="moves" aria-label="Moves so far"></ol>
+    </div>
+  </main>
+
+  <dialog id="menu" aria-labelledby="menu-title">
+    <h2 id="menu-title">Chess</h2>
+    <p class="muted">Two players on one device. Tap a piece, then a square, or drag it. Playing the computer at your level, a coach, and live games with a friend come in the next updates.</p>
+    <div class="actions">
+      <button type="button" id="btn-new" class="primary">New game</button>
+      <button type="button" id="btn-save">Save game (PGN)</button>
+      <button type="button" id="btn-load">Load a game</button>
+    </div>
+    <p class="actions" id="app-actions" hidden>
+      <button type="button" id="btn-update" class="primary" hidden>Update the app</button>
+      <button type="button" id="btn-install" hidden>Install as an app</button>
+    </p>
+    <p class="muted small" id="ios-install" hidden>To install: tap Share, then Add to Home Screen.</p>
+    <p class="muted small"><a href="#" id="about-link">About and credits</a></p>
+    <div class="actions"><button type="button" id="btn-menu-close">Close</button></div>
+  </dialog>
+
+  <dialog id="load" aria-labelledby="load-title">
+    <h2 id="load-title">Load a game</h2>
+    <p class="muted small">Pick a .pgn file, or paste the game's PGN text.</p>
+    <input type="file" id="load-file" accept=".pgn,.txt,application/x-chess-pgn,text/plain">
+    <textarea id="load-text" rows="6" spellcheck="false" aria-label="PGN text"></textarea>
+    <p class="error small" id="load-error" role="alert" hidden></p>
+    <div class="actions">
+      <button type="button" id="btn-load-go" class="primary">Load</button>
+      <button type="button" id="btn-load-cancel">Cancel</button>
+    </div>
+  </dialog>
+
+  <dialog id="promote" aria-labelledby="promote-title">
+    <h2 id="promote-title">Promote to</h2>
+    <div class="promote-choices" id="promote-choices"></div>
+  </dialog>
+
+  <dialog id="about" aria-labelledby="about-title">
+    <h2 id="about-title">About</h2>
+    <p>This app is free software under the GNU General Public License, version 3 or later. You can
+      read, change and share its <a href="https://github.com/nickprignano/chess">source code</a>.
+      It comes with no warranty.</p>
+    <p>Rules by <a href="https://github.com/jhlywa/chess.js">chess.js</a> (BSD-2-Clause,
+      Jeff Hlywa); its license is in <a href="vendor/chess.LICENSE">vendor/chess.LICENSE</a>.
+      The pieces, board and sounds are original to this app.</p>
+    <p class="muted small">Nothing you do here is sent anywhere. Your current game is kept on this device only.</p>
+    <div class="actions"><button type="button" id="btn-about-close" class="primary">Close</button></div>
+  </dialog>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+// Cloudflare Workers static assets: serves this folder as-is, with no Worker script yet.
+// Setup steps are in docs/DEPLOY.md.
+{
+  "name": "chess",
+  "compatibility_date": "2026-11-08",
+  "assets": {
+    "directory": "."
+  }
+}
