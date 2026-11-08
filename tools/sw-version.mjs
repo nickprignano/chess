@@ -8,6 +8,8 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const APP_FILE = /\.(html|css|m?js|json|webmanifest|png|svg)$/;
+// The engine (about 2 MB) is kept the first time you play the computer, not when the app installs.
+const ENGINE_DIR = 'vendor/stockfish';
 
 // Files the site serves (not left out by .assetsignore) that the app needs, as site paths.
 export function appFiles(root = '.') {
@@ -19,7 +21,7 @@ export function appFiles(root = '.') {
   (function walk(dir) {
     for (const name of readdirSync(join(root, dir)).sort()) {
       const path = dir ? `${dir}/${name}` : name;
-      if (ignored.includes(path) || name === 'node_modules' || name === 'sw.js') continue;
+      if (ignored.includes(path) || name === 'node_modules' || name === 'sw.js' || path === ENGINE_DIR) continue;
       if (statSync(join(root, path)).isDirectory()) walk(path);
       else if (APP_FILE.test(name)) files.push(path);
     }

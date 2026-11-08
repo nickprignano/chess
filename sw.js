@@ -1,7 +1,7 @@
 // Service worker: keeps a copy of every app file so the installed app works offline.
 // VERSION and FILES are written by `node tools/sw-version.mjs`; a test fails if they're stale.
 
-const VERSION = '7905ba67acca';
+const VERSION = 'a58d3f713f32';
 const FILES = [
   'icons/apple-touch-icon.png',
   'icons/icon-192.png',
@@ -12,9 +12,14 @@ const FILES = [
   'manifest.webmanifest',
   'src/audio.js',
   'src/board.js',
+  'src/chesscom.js',
+  'src/engine.js',
   'src/game.js',
   'src/main.js',
+  'src/opponent.js',
   'src/pieces.js',
+  'src/rating.js',
+  'src/twin.js',
   'styles.css',
   'vendor/chess.mjs',
 ];
@@ -60,7 +65,11 @@ self.addEventListener('fetch', (event) => {
       const cached = request.mode === 'navigate'
         ? await cache.match('/')
         : await cache.match(request, { ignoreSearch: new URL(request.url).origin === location.origin });
-      return cached || fetch(request);
+      if (cached) return cached;
+      const response = await fetch(request);
+      // The engine isn't kept at install; keep it the first time it's fetched.
+      if (response.ok && new URL(request.url).pathname.startsWith('/vendor/stockfish/')) await cache.put(request, response.clone());
+      return response;
     })(),
   );
 });

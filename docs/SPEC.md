@@ -77,6 +77,18 @@ computer costs nothing and works offline.
   moves. The book comes from your own games (see "Twin") or from a small built-in book file.
   It never calls a third-party API.
 
+**Build 2 result (2026-11-08).** The Maia spike stopped at its first step: Maia-2's code is
+MIT, but its weights are downloaded from Google Drive (and Maia-3's from Hugging Face) with no
+license of their own that we could confirm, so build 2 ships the Stockfish MultiPV fallback.
+Below 2000 it picks among Stockfish's top 4 to 10 moves, weighted by a rating-set temperature;
+from 2000 up it uses `UCI_Elo`. That one picker covers the low ratings too, so there is no
+separate "Skill Level" range, and there is no built-in book (the twin's book is the only one).
+Maia can replace the picker later in `src/opponent.js` once its weights license is confirmed.
+Ratings use the Lichess rapid scale. The chess.com import runs straight from the browser, and
+history, the twin and settings are kept in localStorage (small enough; IndexedDB isn't needed
+yet). The placement game is the first 10 games, which move your rating quickly. The style
+card is built in build 3, with the coach that uses it.
+
 **Your starting level.** There are three ways to set it:
 
 1. **chess.com import.** You type your chess.com username. The Worker fetches
