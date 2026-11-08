@@ -1,7 +1,8 @@
 # Chess coach spec (v1)
 
-Status: draft, red-teamed once with Fable (fixes folded in, see the end), waiting for the
-owner's answers and an outside review. Nothing is built until the owner approves this spec.
+Status: approved (PR #1), with the owner's answers to the open questions folded in on
+2026-11-08. Red-teamed once with Fable (fixes listed at the end). The owner chose to skip the
+outside review.
 
 ## What it is
 
@@ -28,7 +29,9 @@ Worker. It can be installed as a PWA from day one.
 | 3 | Spend cap | $10 a month |
 | 4 | Home | `chess.prignano.ai`, from its own public repo (this one), GPL-3, a PWA from day one |
 | 5 | Live play | A 6-character room code, reconnect, the server checks every move, no chat, no spectators, no accounts needed |
-| 6 | Sign-in | Google sign-in, like the owner's family app |
+| 6 | Sign-in | Google sign-in, built with Cloudflare Access (option A below) |
+| 7 | Coach model | Claude Sonnet 5.5 (`claude-sonnet-5-5`) |
+| 8 | App name | Chess, at `chess.prignano.ai` |
 | - | License | GPL-3.0-or-later. Stockfish is GPL-3 and we ship it, so the app has to be GPL-3 too. That is the same as pinball |
 
 ## Prior art and licenses
@@ -48,8 +51,8 @@ Checked on 2026-11-08 against the npm registry and the projects' own LICENSE fil
 | [chess.com Published-Data API](https://www.chess.com/news/view/published-data-api) | terms | Read-only public ratings and monthly PGN archives, with no key needed. Its terms say to respect chess.com's board colors, piece designs, sounds and **move classification glyphs**, so we draw all of our own |
 
 Our own art and sound: an original SVG piece set and board in prignano-theme colors that follow
-light and dark mode, plus our own short move, capture and check sounds. The app name is still
-open (see open questions).
+light and dark mode, plus our own short move, capture and check sounds. The app is called
+Chess.
 
 ## How it works
 
@@ -148,14 +151,14 @@ better"). These are shorter, but the app still works.
 
 ### Sign-in
 
-Sign-in uses Google. There are two ways to build it, and the choice is an open question:
+Sign-in uses Google. Of the two ways to build it, the owner chose **A**:
 
-- **A. Cloudflare Access on `/coach/*` and `/api/coach` only (recommended).** The owner's family app already
+- **A. Cloudflare Access on `/coach/*` and `/api/coach` only (chosen).** The owner's family app already
   uses Access. It is free for up to 50 users, Google is the sign-in provider, and the policy
   is an email allowlist the owner edits in the dashboard. Access can also offer a one-time code by
   email, for a child whose Google account can't sign in to other sites. The Worker checks the
   Access token on every coach call. We write no sign-in code and store no account table.
-- **B. Google Identity Services in the page**, like that app's own sign-in. The Worker checks the
+- **B. Google Identity Services in the page** (not chosen, kept for the record), like that app's own sign-in. The Worker checks the
   ID token (audience, `email_verified`, email in lower case) and sets an HttpOnly, Secure,
   SameSite=Lax session cookie, limited to `/api` and lasting 7 days. The allowlist is checked
   on every request, not only at sign-in, so removing someone takes effect at once.
@@ -191,15 +194,18 @@ Five layers, the first being the hard stop:
    cap. It stops Claude calls for the day at $0.33 and for the month at $9. If the budget
    object can't be reached, the coach turns off; it never fails open. After a stop, the coach
    uses the free on-device notes.
-3. **Per-user limits:** 3 reviews and 15 "explain" taps a day per account, enforced by the
+3. **Per-user limits:** 2 reviews and 5 "explain" taps a day per account (about $0.09 on
+   Sonnet 5.5, so 3 people at their maximum fit in a day), enforced by the
    Durable Object counters, which are the real limit. The Workers Rate Limiting binding sits in
    front as a cheap first filter (it is best effort per data center). The per-user limits are
-   set so that every allowlisted user at their maximum still fits under the daily cap.
+   set so that several allowlisted users at their maximum fit under the daily cap. If the
+   allowlist grows past what fits, the daily cap still holds and later users that day get the
+   free on-device notes.
 4. **Bounded requests:** `max_tokens` is capped on every call, and the input is a game record
    of at most 300 half-moves, so no single call can cost much.
 5. **The API key lives only in a Worker secret** (`ANTHROPIC_API_KEY`), following ai-brain
-   decision 0016. It is never in the repo, a claude.ai environment or chat. the owner puts it there
-   himself, and it is rotated new-then-revoke.
+   decision 0016. It is never in the repo, a claude.ai environment or chat. The owner puts it there
+   themselves, and it is rotated new-then-revoke.
 
 **Cost per call** (Anthropic list prices from the skill's price table, dated 2026-10-06),
 assuming about 2,000 tokens in and 300 out for an "explain" tap, and about 6,000 in and 1,500
@@ -212,7 +218,8 @@ build checks cache prices against Anthropic's live pricing page.
 | Sonnet 5.5 ($2 / $10) | $0.007 | $0.027 | about 12 reviews |
 | Opus 5.5 ($4 / $20) | $0.014 | $0.054 | about 6 reviews |
 
-Which model to use is an open question. Anthropic keeps API inputs and outputs for about 30
+The owner chose Sonnet 5.5 for its writing, so a day's cap covers about 12 reviews, or a
+mix of reviews and "explain" taps. Anthropic keeps API inputs and outputs for about 30
 days by default and does not train on them; the privacy page says so.
 
 ### Live games with a friend
@@ -255,8 +262,8 @@ idle room costs nothing.
 - No analytics, ads, trackers or third-party scripts. The prignano-theme header loads from
   jsDelivr pinned to a commit SHA, as pinball does (its file holds personal details, so we don't
   copy it into this repo), plus a subresource integrity hash, which pinball doesn't have yet. It is cached for offline use. A
-  Content-Security-Policy header lists the only allowed sources. With option B, Google's
-  sign-in script loads only when someone taps "Sign in".
+  Content-Security-Policy header lists the only allowed sources. Sign-in runs on Cloudflare
+  Access's own page, so the app loads no Google script.
 - Game history, the twin and settings stay on the device. "Delete my data" in settings clears
   them, and also deletes the account record from the Worker if the player is signed in.
 - The Worker keeps no game records or request logs. Rate-limit keys are hashed IPs that expire.
@@ -315,18 +322,18 @@ Fewer, larger PRs:
    fallback notes, privacy page.
 4. **Live games:** room Durable Object, codes, reconnect, clocks.
 
-the owner's steps (each one is a few clicks, done in a dashboard by him): create the repo, create an
-Anthropic workspace with a $10 limit and put its key in the Worker secret, create a Google OAuth
-client ID, add the allowlist secret, and add the custom domain.
+The owner's steps (each one is a few clicks in a dashboard): create the repo (done), create an
+Anthropic workspace with a $10 limit and put its key in the Worker secret, set up Cloudflare
+Access with Google as the sign-in provider (it needs a Google OAuth client ID) and an email
+allowlist policy on the coach paths, and
+add the custom domain.
 
-## Open questions for the owner
+## Answers to the open questions (owner, 2026-11-08)
 
-1. **Coach model:** Haiku 5.5 (cheapest, about 230 reviews a day within the cap), Sonnet 5.5
-   (better writing, about 12 reviews a day), or Haiku for "explain" taps and Sonnet for reviews?
-2. **Sign-in build:** A, Cloudflare Access with Google plus an email-code fallback (less code, and
-   it works for kids whose Google accounts are blocked), or B, Google sign-in in the page like
-   the owner's family app's?
-3. **App name:** Knightlight, Porch Chess, Open File, or your own.
+1. **Coach model:** Sonnet 5.5.
+2. **Sign-in build:** A, Cloudflare Access with Google plus an email-code fallback.
+3. **App name:** Chess, at `chess.prignano.ai`.
+4. **Outside review:** skipped by the owner.
 
 ## Fable red team (2026-11-08): what it found and what changed
 
