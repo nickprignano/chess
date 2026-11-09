@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Chess</title>
-  <meta name="description" content="Open-source chess in the browser. Play the computer at your level, a twin that opens like you, or a friend on the same device.">
+  <meta name="description" content="Open-source chess in the browser. Play the computer at your level, or a twin that opens like you.">
   <meta name="theme-color" content="#0d1117">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
@@ -41,7 +41,7 @@
 
   <dialog id="menu" aria-labelledby="menu-title">
     <h2 id="menu-title">Chess</h2>
-    <p class="muted">Play the computer at your level, your twin, or a friend on this device. Tap a piece, then a square, or drag it. After a game, the coach reviews it; tap any move for its view of that move. Live games with a friend come next.</p>
+    <p class="muted">Play the computer at your level or your twin. Tap a piece, then a square, or drag it. After a game, the coach reviews it; tap any move for its view of that move. Live games with a friend come next.</p>
     <div class="actions">
       <button type="button" id="btn-new" class="primary">New game</button>
       <button type="button" id="btn-review" hidden>Review this game</button>
@@ -88,7 +88,6 @@
       <legend>Play against</legend>
       <label><input type="radio" name="opponent" value="computer" id="opp-computer" checked> The computer</label>
       <label><input type="radio" name="opponent" value="twin" id="opp-twin"> Your twin</label>
-      <label><input type="radio" name="opponent" value="friend"> A friend on this device</label>
     </fieldset>
     <p class="muted small" id="newgame-rating"></p>
     <p class="muted small" id="twin-hint"></p>

@@ -244,6 +244,10 @@ days by default and does not train on them; the privacy page says so.
 
 ### Live games with a friend
 
+The owner dropped the pass-the-device mode (2026-11-09): on one device you play the computer or
+your twin, and two people play each other only in a live room. A loaded game still opens on a
+free board where you can move both sides.
+
 These run on a Cloudflare Durable Object, one per room, using the WebSocket Hibernation API so an
 idle room costs nothing.
 
