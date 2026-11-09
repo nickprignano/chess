@@ -161,6 +161,14 @@ review is labelled "written by AI".
 back to free notes generated on the device from Stockfish ("this loses a bishop: Bxf7 was
 better"). These are shorter, but the app still works.
 
+**Build 3 result (2026-11-09).** The coach shipped as specified, with these choices:
+the Worker calls the Messages API with `fetch` (the app vendors no npm packages); `max_tokens`
+is 2,500 for a review and 800 for an explain, with low effort; refusal fallbacks are not turned
+on, so the reserved worst case stays at Sonnet's prices (a refused review falls back to the free
+notes); the 5 explains are per day, not also per game; a hint makes the game unrated, like Undo;
+ideas go to a KV namespace with a one-year expiry; and the style card is still not built (the
+coach works from the game and the engine checks alone). The Worker's code is in `worker/`.
+
 ### Sign-in
 
 Sign-in uses Google. Of the two ways to build it, the owner chose **A**:

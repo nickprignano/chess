@@ -8,3 +8,4 @@ docs
 test
 tools
 .gitignore
+worker

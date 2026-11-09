@@ -10,6 +10,7 @@ import { chooseMove } from './opponent.js';
 import { pieceSvg } from './pieces.js';
 import { LEVELS, afterGame, fromChessCom, startingPlayer } from './rating.js';
 import { addGame, bookMove } from './twin.js';
+import { LEVELS as COACH_LEVELS, analyseGame, callCoach, hint, localExplain, localReview } from './coach.js';
 
 const THEME_MODULE = 'https://cdn.jsdelivr.net/gh/nickprignano/prignano-theme@4c2effc3829269e40ad663baf130a6b899a402bb/index.js';
 const SAVE_KEY = 'chess-current-game';
@@ -20,7 +21,8 @@ const PLAYER_KEY = 'chess-player'; // your rating
 const GAMES_KEY = 'chess-games'; // finished games, for "Save all my games" and the twin
 const TWIN_KEY = 'chess-twin'; // the twin's opening book
 const USER_KEY = 'chess-com-user'; // your chess.com username, if you gave one
-const ALL_KEYS = [SAVE_KEY, FLIP_KEY, MODE_KEY, PLAYER_KEY, GAMES_KEY, TWIN_KEY, USER_KEY, 'chess-muted'];
+const COACH_KEY = 'chess-coach-level'; // beginner, advanced or competition
+const ALL_KEYS = [SAVE_KEY, FLIP_KEY, MODE_KEY, PLAYER_KEY, GAMES_KEY, TWIN_KEY, USER_KEY, COACH_KEY, 'chess-muted'];
 const MAX_GAMES = 200;
 const MAX_CHESSCOM_GAMES = 500;
 const MIN_THINK_MS = 500; // so the computer's reply doesn't land the instant you let go
@@ -204,12 +206,27 @@ function update() {
   $('status').textContent = text;
   const yourMoves = game.history().filter((m) => !vsComputer() || m.color === mode.you).length;
   $('btn-undo').disabled = yourMoves === 0 || (vsComputer() && mode.recorded);
+  $('btn-hint').hidden = !vsComputer() || status.over;
+  $('btn-hint').disabled = !yourTurn();
+  // Once the game is over, each move in the list can be tapped for the coach's view of it.
   const list = $('moves');
   list.innerHTML = '';
+  list.classList.toggle('explainable', status.over);
   const history = game.history();
   for (let i = 0; i < history.length; i += 2) {
     const li = document.createElement('li');
-    li.textContent = history[i].san + (history[i + 1] ? `  ${history[i + 1].san}` : '');
+    for (const ply of [i, i + 1]) {
+      if (!history[ply]) continue;
+      const span = document.createElement(status.over ? 'button' : 'span');
+      span.className = 'mv';
+      span.textContent = history[ply].san;
+      if (status.over) {
+        span.type = 'button';
+        span.setAttribute('aria-label', `Explain ${history[ply].san}`);
+        span.addEventListener('click', () => runCoach('explain', ply));
+      }
+      li.append(span);
+    }
     list.append(li);
   }
   if (status.over) {
@@ -257,6 +274,7 @@ addEventListener('keydown', () => sounds.unlock(), { capture: true });
 // Menu: new game, resign, your level, save and load.
 $('btn-menu').addEventListener('click', () => {
   $('btn-resign').hidden = !vsComputer() || game.status().over;
+  $('btn-review').hidden = !game.status().over || !game.history().length;
   $('menu').showModal();
 });
 $('btn-menu-close').addEventListener('click', () => $('menu').close());
@@ -322,8 +340,146 @@ $('btn-newgame-go').addEventListener('click', () => {
   computerMove();
 });
 
+// The coach: hints during a game against the computer, a review after any game, and "explain"
+// for a tapped move. See src/coach.js for what is checked here and what goes to the AI coach.
+let coachLevel = COACH_LEVELS.includes(load(COACH_KEY)) ? load(COACH_KEY) : 'beginner';
+let analysis = null; // { pgn, facts }: the engine's checks for the finished game, kept for explains
+
+$('coach-level').addEventListener('change', () => {
+  coachLevel = $('coach-level').value;
+  save(COACH_KEY, coachLevel);
+});
+
+// Hints are free and made on this device. Taking one makes the game unrated, like Undo.
+$('btn-hint').addEventListener('click', async () => {
+  if (!yourTurn() || game.status().over) return;
+  $('btn-hint').disabled = true;
+  try {
+    const e = getEngine();
+    await e.ready;
+    const h = await hint(e, game.fen(), coachLevel);
+    mode.rated = false;
+    update();
+    if (coachLevel !== 'competition' && h.square) board.activate(h.square);
+    $('status').textContent = `Hint: ${h.text} (Hints make this game unrated.)`;
+  } catch (error) {
+    quitEngine();
+    update();
+    $('status').textContent = error.message;
+  }
+});
+
+const WHY_LOCAL = {
+  'signed-out': 'Sign in (family only) for a review written by the AI coach. Meanwhile, here are the free notes.',
+  'user-limit': 'You’ve used today’s AI reviews. Here are the free notes instead.',
+  budget: 'The AI coach is resting until tomorrow. Here are the free notes instead.',
+};
+
+async function runCoach(kind, ply) {
+  $('menu').close();
+  $('coach-title').textContent = kind === 'review' ? 'Game review' : 'About this move';
+  $('coach-body').replaceChildren();
+  $('coach-source').textContent = '';
+  $('coach-signin').hidden = true;
+  $('coach-status').textContent = 'Checking the moves on this device…';
+  $('coach').showModal();
+  const history = game.history();
+  const moves = history.map((m) => m.from + m.to + (m.promotion ?? ''));
+  const pgn = game.pgn();
+  try {
+    if (analysis?.pgn !== pgn) {
+      const e = getEngine();
+      await e.ready;
+      const facts = await analyseGame(e, moves, (i, n) => {
+        $('coach-status').textContent = `Checking the moves on this device… ${i} of ${n}`;
+      });
+      analysis = { pgn, facts };
+      quitEngine();
+    }
+  } catch (error) {
+    quitEngine();
+    $('coach-status').textContent = error.message;
+    return;
+  }
+  $('coach-status').textContent = 'Asking the coach…';
+  const body = { level: coachLevel, moves, facts: analysis.facts, ...(kind === 'explain' ? { ply } : {}) };
+  const ai = await callCoach(kind, body);
+  if (!ai.error) {
+    showCoach(ai, history, 'Written by the AI coach (Claude). It can make mistakes.');
+    $('coach-status').textContent = '';
+    return;
+  }
+  const side = vsComputer() ? mode.you : null;
+  showCoach(kind === 'review' ? localReview(moves, analysis.facts, coachLevel, side) : localExplain(moves, analysis.facts, coachLevel, ply), history, 'Notes from the computer on this device.');
+  $('coach-status').textContent = kind === 'review' ? WHY_LOCAL[ai.error] ?? 'The AI coach isn’t available right now. Here are the free notes.' : '';
+  $('coach-signin').hidden = ai.error !== 'signed-out';
+}
+
+// Shows a review: a summary and moments, all as plain text.
+function showCoach({ summary, moments }, history, source) {
+  const body = $('coach-body');
+  body.replaceChildren();
+  if (summary) {
+    const p = document.createElement('p');
+    p.textContent = summary;
+    body.append(p);
+  }
+  for (const m of moments) {
+    const p = document.createElement('p');
+    const b = document.createElement('strong');
+    b.textContent = m.label ?? `${Math.floor(m.ply / 2) + 1}${m.ply % 2 ? '…' : '.'} ${history[m.ply]?.san ?? ''}`;
+    p.append(b, ` ${m.text}`);
+    body.append(p);
+  }
+  $('coach-source').textContent = source;
+}
+$('btn-review').addEventListener('click', () => runCoach('review'));
+$('btn-coach-close').addEventListener('click', () => $('coach').close());
+
+// Whether you're signed in for the AI coach, shown under Your level.
+async function showAccount() {
+  $('coach-account').textContent = 'Checking sign-in…';
+  $('account-signin').hidden = true;
+  const s = await callCoach('status');
+  if (s.error === 'signed-out') {
+    $('coach-account').textContent = 'Not signed in. Family members can sign in for reviews written by the AI coach.';
+    $('account-signin').hidden = false;
+  } else if (s.error || !s.ready) {
+    $('coach-account').textContent = 'The AI coach isn’t switched on yet. Reviews use the free notes.';
+  } else {
+    $('coach-account').textContent = s.open
+      ? `Signed in. Left today: ${s.reviews} AI review${s.reviews === 1 ? '' : 's'} and ${s.explains} explain${s.explains === 1 ? '' : 's'}.`
+      : 'Signed in. The AI coach is resting until tomorrow.';
+  }
+}
+
+// The idea box: ideas for the app go to the owner, never to the AI.
+$('btn-idea').addEventListener('click', () => {
+  $('menu').close();
+  $('idea-text').value = '';
+  $('idea-msg').textContent = '';
+  $('idea-signin').hidden = true;
+  $('idea').showModal();
+});
+$('btn-idea-cancel').addEventListener('click', () => $('idea').close());
+$('btn-idea-send').addEventListener('click', async () => {
+  const text = $('idea-text').value.trim();
+  if (!text) return;
+  $('btn-idea-send').disabled = true;
+  const r = await callCoach('idea', { text });
+  $('btn-idea-send').disabled = false;
+  if (!r.error) {
+    $('idea-text').value = '';
+    $('idea-msg').textContent = 'Thanks! Your idea was sent.';
+  } else {
+    $('idea-msg').textContent = r.error === 'signed-out' ? 'Sign in first (family only).' : 'It didn’t send. Try again later.';
+    $('idea-signin').hidden = r.error !== 'signed-out';
+  }
+});
+
 // Your level and twin.
 function showLevel() {
+  $('coach-level').value = coachLevel;
   $('level-now').textContent = player
     ? `Your rating is ${player.rating}${player.games ? `, after ${player.games} game${player.games === 1 ? '' : 's'} here` : ''}. It adjusts after every game against the computer.`
     : 'You don’t have a rating yet. Pick a level, or bring your chess.com rating.';
@@ -331,6 +487,7 @@ function showLevel() {
 }
 function openLevel(message) {
   $('level-msg').textContent = message ?? '';
+  showAccount();
   $('cc-user').value = load(USER_KEY) ?? '';
   showLevel();
   $('level').showModal();
@@ -396,8 +553,10 @@ $('btn-export').addEventListener('click', () => {
   }
   download(games.map((g) => g.pgn).join('\n\n') + '\n', 'chess-all-games');
 });
-$('btn-delete').addEventListener('click', () => {
+$('btn-delete').addEventListener('click', async () => {
   if (!confirm('Delete your rating, your twin, your saved games and settings from this device?')) return;
+  // If you're signed in, the coach's usage counters for you go too.
+  await callCoach('forget', {});
   for (const key of ALL_KEYS) {
     try {
       localStorage.removeItem(key);
@@ -526,6 +685,9 @@ function applyTheme() {
 new MutationObserver(applyTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
 applyTheme();
+
+// Back from signing in: tidy the address.
+if (location.search.includes('signed-in')) history.replaceState(null, '', '/');
 
 update();
 computerMove(); // if the computer was about to move when the page closed

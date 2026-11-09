@@ -1,9 +1,23 @@
-// Cloudflare Workers static assets: serves this folder as-is, with no Worker script yet.
-// Setup steps are in docs/DEPLOY.md.
+// Cloudflare Workers: serves this folder as static files, and runs worker/index.js only for
+// /coach and /api/coach (the AI coach and the idea box). Setup steps are in docs/DEPLOY.md.
 {
   "name": "chess",
+  "main": "worker/index.js",
   "compatibility_date": "2026-11-08",
   "assets": {
-    "directory": "."
-  }
+    "directory": ".",
+    "binding": "ASSETS",
+    "run_worker_first": ["/coach", "/coach/*", "/api/*"]
+  },
+  // Spend and usage counters (worker/budget.js).
+  "durable_objects": {
+    "bindings": [{ "name": "BUDGET", "class_name": "Budget" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Budget"] }],
+  // Ideas from the in-app idea box. No id: Wrangler creates the namespace on the first deploy.
+  "kv_namespaces": [{ "binding": "IDEAS" }],
+  // A cheap first filter in front of the Budget counters, per account (best effort).
+  "ratelimits": [{ "name": "COACH_LIMIT", "namespace_id": "1001", "simple": { "limit": 20, "period": 60 } }],
+  // No request logs: the Worker keeps no records of games or people.
+  "observability": { "enabled": false }
 }

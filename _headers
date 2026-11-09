@@ -1,0 +1,9 @@
+# Response headers for the static app (Cloudflare Workers static assets reads this file).
+# The CSP lists the only places the page may load from: this site, the pinned site theme on
+# jsDelivr, chess.com's public API for "From chess.com", and the site header's avatar. The
+# sha256 is the small theme script in index.html (test/pwa.test.mjs checks it). Stockfish needs
+# 'wasm-unsafe-eval' to run its WebAssembly.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'sha256-e72uEiAqdh0xGsDhfWn581dzTv2dsBC9QQOr7buxRYs=' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https://github.com https://avatars.githubusercontent.com; connect-src 'self' https://api.chess.com https://cdn.jsdelivr.net; worker-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'; object-src 'none'
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Content-Type-Options: nosniff

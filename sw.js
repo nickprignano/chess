@@ -1,7 +1,7 @@
 // Service worker: keeps a copy of every app file so the installed app works offline.
 // VERSION and FILES are written by `node tools/sw-version.mjs`; a test fails if they're stale.
 
-const VERSION = 'a58d3f713f32';
+const VERSION = 'ae27f3ae0d24';
 const FILES = [
   'icons/apple-touch-icon.png',
   'icons/icon-192.png',
@@ -10,9 +10,11 @@ const FILES = [
   'icons/icon.svg',
   '/',
   'manifest.webmanifest',
+  'privacy',
   'src/audio.js',
   'src/board.js',
   'src/chesscom.js',
+  'src/coach.js',
   'src/engine.js',
   'src/game.js',
   'src/main.js',
@@ -58,17 +60,20 @@ self.addEventListener('message', (event) => {
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET') return;
+  // Sign-in and the coach always go to the network.
+  const { origin, pathname } = new URL(request.url);
+  if (origin === location.origin && (pathname.startsWith('/api/') || pathname === '/coach' || pathname.startsWith('/coach/'))) return;
   event.respondWith(
     (async () => {
       const cache = await caches.open(CACHE);
-      // Every page address is the one app page, cached as "/".
+      // Pages are cached by their address (such as /privacy); any other page address is the app.
       const cached = request.mode === 'navigate'
-        ? await cache.match('/')
-        : await cache.match(request, { ignoreSearch: new URL(request.url).origin === location.origin });
+        ? (await cache.match(request, { ignoreSearch: true })) || (await cache.match('/'))
+        : await cache.match(request, { ignoreSearch: origin === location.origin });
       if (cached) return cached;
       const response = await fetch(request);
       // The engine isn't kept at install; keep it the first time it's fetched.
-      if (response.ok && new URL(request.url).pathname.startsWith('/vendor/stockfish/')) await cache.put(request, response.clone());
+      if (response.ok && pathname.startsWith('/vendor/stockfish/')) await cache.put(request, response.clone());
       return response;
     })(),
   );

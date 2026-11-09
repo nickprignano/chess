@@ -123,6 +123,9 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
   white-space: pre;
 }
 .moves .result { list-style: none; font-weight: 700; }
+.moves .mv { display: inline-block; min-width: 3.2em; margin-right: 0.6em; }
+.moves button.mv { font: inherit; padding: 1px 4px; margin: 0 0.3em 0 -4px; border: 0; border-radius: 4px; background: none; color: var(--accent); text-align: left; }
+.moves button.mv:hover, .moves button.mv:focus-visible { background: var(--card); outline: 1px solid var(--accent); }
 @media (min-aspect-ratio: 5/4) {
   .play { flex-direction: row; }
   .board-wrap { flex: 1; width: auto; aspect-ratio: auto; place-items: center; }
@@ -169,6 +172,9 @@ dialog { max-height: 90dvh; overflow-y: auto; }
 .choices label { display: flex; align-items: center; gap: 6px; }
 .choices input { accent-color: var(--accent); margin: 0; }
 .levels { margin-top: 4px; }
+.field { display: grid; gap: 4px; font-size: 0.9rem; }
+.field select { font: inherit; padding: 6px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--fg); max-width: 100%; }
+.coach-body p { margin: 0 0 10px; line-height: 1.45; }
 .text {
   width: 100%;
   box-sizing: border-box;
@@ -202,3 +208,9 @@ a { color: var(--accent); }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+
+/* The privacy page */
+html:has(body.page), body.page { height: auto; overflow: auto; }
+body.page { display: block; }
+.prose { max-width: 40em; margin: 0 auto; padding: 24px 16px 48px; line-height: 1.55; }
+.prose h2 { font-size: 1.1rem; margin-top: 1.6em; }
