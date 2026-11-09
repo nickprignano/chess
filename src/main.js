@@ -63,7 +63,8 @@ try {
   game = new Game();
 }
 let orientation = load(FLIP_KEY) === 'b' ? 'b' : 'w';
-// A friend: { opponent: 'friend' }. The computer or your twin: { opponent: 'computer' | 'twin',
+// A free board, where you move both sides (before your first game, and for a loaded game):
+// { opponent: 'friend' }. There is no pass-the-device mode to pick. The computer or your twin: { opponent: 'computer' | 'twin',
 // you: 'w' | 'b', rating (the computer's), rated, recorded, outOfBook, note }.
 let mode = loadJson(MODE_KEY) ?? { opponent: 'friend' };
 let player = loadJson(PLAYER_KEY); // { rating, rd, vol, games }, or null before you set a level

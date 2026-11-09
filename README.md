@@ -5,7 +5,7 @@ build step: the repo is the site. It installs as an app on phones and computers 
 offline.
 
 What works now: play the computer at your level (Stockfish, on your device), a twin that opens
-the way you do, or a friend on the same device. Your rating starts from a level you pick or
+the way you do. Your rating starts from a level you pick or
 your chess.com rating and adjusts after every game (Glicko-2). Every rule, undo, flip, and
 saving or loading games as PGN. A coach gives hints during the game and reviews it afterwards:
 free notes from the engine on your device, or reviews written by Claude for signed-in family
