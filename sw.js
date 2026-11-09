@@ -1,7 +1,7 @@
 // Service worker: keeps a copy of every app file so the installed app works offline.
 // VERSION and FILES are written by `node tools/sw-version.mjs`; a test fails if they're stale.
 
-const VERSION = 'a41c5367eea5';
+const VERSION = '337d86d6fbc0';
 const FILES = [
   'icons/apple-touch-icon.png',
   'icons/icon-192.png',
@@ -17,6 +17,7 @@ const FILES = [
   'src/coach.js',
   'src/engine.js',
   'src/game.js',
+  'src/live.js',
   'src/main.js',
   'src/opponent.js',
   'src/pieces.js',

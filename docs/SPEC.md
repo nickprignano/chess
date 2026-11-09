@@ -281,6 +281,16 @@ idle room costs nothing.
   friendly games, so hints, the coach and analysis are switched off in live rooms on the client,
   and the app says plainly that this is honour-based.
 
+**Build 4 result (2026-11-09).** Live rooms shipped as specified, with these choices: the
+room's rules are in `worker/rooms.js` (tested in Node) and the Durable Object in
+`worker/room.js`; a browser's first message names its seat token, and a socket with no token takes
+the empty seat; each side's first move is free on the clock, which starts with White's second
+move; at most 5 messages a second and 1,000 per connection; the code lookup and room creation
+share one rate limit of 20 a minute per hashed address; KV keeps a code for at most 7 days and a
+room closes after 7 days even if moves keep coming; a share link (`/?room=CODE`) opens the join
+box with the code filled in; the coach's review is offered once a live game is over. The live
+game counts as a resignation if you leave it for a new game.
+
 ### Privacy (kids may play)
 
 - No analytics, ads, trackers or third-party scripts. The prignano-theme header loads from

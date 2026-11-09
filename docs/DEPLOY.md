@@ -61,6 +61,16 @@ the first deploy with this config) for a year, without the sender's name or emai
 the dashboard under **Storage & Databases**, **KV**, or ask a Claude thread with the Cloudflare
 connector to read them and turn them into issues. They are never sent to the AI.
 
+## Live games
+
+Nothing to set up. The first deploy with this config creates the `Room` Durable Object (the `v2`
+migration), the `ROOMS` KV namespace for room codes and the `ROOM_LIMIT` rate limit. Rooms need no
+sign-in, so keep `/api/rooms` out of the Cloudflare Access app: the Access app covers only
+`coach` and `api/coach`.
+
+To try it locally, run `npx wrangler dev`, open the address it prints in two browser windows,
+start a room in one and join with its code in the other.
+
 ## After that
 
 Every merge to `main` deploys on its own. Other branches get preview builds if
@@ -73,3 +83,5 @@ Worker's **Deployments** tab and pick an earlier version.
 - `https://chess.prignano.ai/test/` and `/tools/` return 404 (left out by `.assetsignore`).
 - The browser console shows no errors.
 - `https://chess.prignano.ai/api/coach/status` without signing in sends you to the sign-in page.
+- Menu, Play a friend online, Start a room on one device, then Join with the code on another:
+  moves show up on both.

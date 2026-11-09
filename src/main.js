@@ -1,5 +1,5 @@
-// The page: board, controls, move list, the computer opponent, your level and twin, save and
-// load, sound, the installable app and the site header.
+// The page: board, controls, move list, the computer opponent, live games with a friend, your
+// level and twin, save and load, sound, the installable app and the site header.
 
 import { Sounds } from './audio.js';
 import { Board } from './board.js';
@@ -7,6 +7,7 @@ import { cleanUsername, fetchGames, fetchRating } from './chesscom.js';
 import { browserEngine } from './engine.js';
 import { Game } from './game.js';
 import { chooseMove } from './opponent.js';
+import { LiveRoom, cleanCode, createRoom, findRoom, validCode } from './live.js';
 import { pieceSvg } from './pieces.js';
 import { LEVELS, afterGame, fromChessCom, startingPlayer } from './rating.js';
 import { addGame, bookMove } from './twin.js';
@@ -65,14 +66,21 @@ try {
 let orientation = load(FLIP_KEY) === 'b' ? 'b' : 'w';
 // A free board, where you move both sides (before your first game, and for a loaded game):
 // { opponent: 'friend' }. There is no pass-the-device mode to pick. The computer or your twin: { opponent: 'computer' | 'twin',
-// you: 'w' | 'b', rating (the computer's), rated, recorded, outOfBook, note }.
+// you: 'w' | 'b', rating (the computer's), rated, recorded, outOfBook, note }. A friend online:
+// { opponent: 'live', code, token (your seat), you, recorded, note }.
 let mode = loadJson(MODE_KEY) ?? { opponent: 'friend' };
 let player = loadJson(PLAYER_KEY); // { rating, rd, vol, games }, or null before you set a level
 let games = loadJson(GAMES_KEY) ?? []; // [{ pgn, you }], newest last
 let twin = loadJson(TWIN_KEY); // { book, games }, or null
 
-const vsComputer = () => mode.opponent !== 'friend';
-const yourTurn = () => !vsComputer() || (game.turn() === mode.you && !thinking);
+const vsComputer = () => mode.opponent === 'computer' || mode.opponent === 'twin';
+const isLive = () => mode.opponent === 'live';
+// A live game is open for your move only while connected, seated with your friend, and not over.
+const liveReady = () => Boolean(live?.online && live.state && !live.state.waiting && !live.state.result);
+function yourTurn() {
+  if (isLive()) return liveReady() && game.turn() === mode.you;
+  return !vsComputer() || (game.turn() === mode.you && !thinking);
+}
 
 const board = new Board($('board'), {
   targets: (square) => (game.status().over || !yourTurn() ? [] : game.targets(square)),
@@ -85,6 +93,7 @@ const board = new Board($('board'), {
 function play(from, to, promotion) {
   const move = game.move(from, to, promotion);
   if (!move) return;
+  if (isLive()) live.room.send({ type: 'move', uci: from + to + (promotion ?? '') });
   const status = game.status();
   if (status.over) sounds.play('end');
   else if (move.san.includes('+')) sounds.play('check');
@@ -154,9 +163,14 @@ async function computerMove() {
 function recordGame() {
   mode.recorded = true;
   const pgn = game.pgn();
-  games.push({ pgn, you: vsComputer() ? mode.you : null });
+  games.push({ pgn, you: mode.you ?? null });
   games = games.slice(-MAX_GAMES);
   saveJson(GAMES_KEY, games);
+  if (isLive()) {
+    live?.room.stop();
+    live = null;
+    mode.note = 'Friendly game: not rated.';
+  }
   if (!vsComputer()) return;
   quitEngine();
   const { result } = game.status();
@@ -204,9 +218,12 @@ function update() {
     else if (thinking) text = `${them} is thinking…`;
     else if (game.turn() === mode.you) text = game.checkSquare() ? 'Your move. You’re in check.' : 'Your move.';
   }
+  if (isLive()) text = liveStatus(status);
   $('status').textContent = text;
+  showLive();
   const yourMoves = game.history().filter((m) => !vsComputer() || m.color === mode.you).length;
   $('btn-undo').disabled = yourMoves === 0 || (vsComputer() && mode.recorded);
+  $('btn-undo').hidden = isLive();
   $('btn-hint').hidden = !vsComputer() || status.over;
   $('btn-hint').disabled = !yourTurn();
   // Once the game is over, each move in the list can be tapped for the coach's view of it.
@@ -274,13 +291,21 @@ addEventListener('keydown', () => sounds.unlock(), { capture: true });
 
 // Menu: new game, resign, your level, save and load.
 $('btn-menu').addEventListener('click', () => {
-  $('btn-resign').hidden = !vsComputer() || game.status().over;
+  $('btn-resign').hidden = !(vsComputer() || liveReady()) || game.status().over;
+  $('btn-draw').hidden = !liveReady();
+  $('btn-draw').disabled = live?.state?.draw === mode.you;
+  $('btn-draw').textContent = live?.state?.draw === mode.you ? 'Draw offered' : 'Offer a draw';
   $('btn-review').hidden = !game.status().over || !game.history().length;
   $('menu').showModal();
 });
 $('btn-menu-close').addEventListener('click', () => $('menu').close());
 $('btn-resign').addEventListener('click', () => {
   if (!confirm('Resign this game?')) return;
+  $('menu').close();
+  if (isLive()) {
+    live?.room.send({ type: 'resign' });
+    return;
+  }
   stopThinking();
   game.resign(mode.you);
   $('menu').close();
@@ -289,6 +314,7 @@ $('btn-resign').addEventListener('click', () => {
 
 // A rated game you leave halfway counts as a loss, so leaving can't dodge one.
 function leaveGame() {
+  if (!leaveLive()) return false;
   if (!game.history().length || game.status().over) return true;
   if (vsComputer() && !game.history().some((m) => m.color === mode.you)) return true;
   if (vsComputer() && mode.rated) {
@@ -339,6 +365,220 @@ $('btn-newgame-go').addEventListener('click', () => {
   }
   update();
   computerMove();
+});
+
+// Live games with a friend. The room on the server holds the game and checks every move; this
+// page sends your moves and redraws from what the room says. See src/live.js and worker/rooms.js.
+const GONE_MS = 3 * 60 * 1000; // the room lets you claim the win after your friend has been gone this long
+let live = null; // { room, state (the room's last message), received (when), online }
+
+function startLive() {
+  live = { room: null, state: null, received: 0, online: false };
+  live.room = new LiveRoom(mode.code, mode.token, onLive);
+}
+
+// You left the room (a new game, or loading one). Leaving a game in progress resigns it.
+function leaveLive() {
+  if (!isLive() || !live) return true;
+  if (!game.status().over && live.state && !live.state.waiting) {
+    if (!confirm('Leave this live game? Leaving counts as resigning.')) return false;
+    live.room.send({ type: 'resign' });
+  }
+  live.room.stop();
+  live = null;
+  mode.recorded = true;
+  return true;
+}
+
+const ENDINGS = {
+  resigned: (loser) => `${loser} resigned`,
+  agreed: () => 'Draw agreed',
+  time: (loser) => `${loser} ran out of time`,
+  abandoned: (loser) => `${loser} left the game`,
+};
+
+function onLive(msg) {
+  if (!live) return;
+  if (msg.type === 'seat') {
+    mode.token = msg.token;
+    mode.you = msg.color;
+    orientation = msg.color;
+    save(FLIP_KEY, orientation);
+    saveJson(MODE_KEY, mode);
+  } else if (msg.type === 'state') {
+    applyLive(msg);
+  } else if (msg.type === 'connection') {
+    live.online = msg.online;
+    update();
+  } else if (msg.type === 'error') {
+    // A move the room refused: go back to the room's game.
+    if (live.state) applyLive(live.state);
+  } else if (msg.type === 'closed') {
+    live = null;
+    const why = { full: 'That room already has two players.', 'no-room': 'That room has closed.', replaced: 'This game is open on another screen.' };
+    mode.recorded = true;
+    mode.note = why[msg.reason] ?? 'The room has closed.';
+    update();
+  }
+}
+
+function applyLive(s) {
+  live.state = s;
+  live.received = Date.now();
+  const before = game.history();
+  const same = before.length === s.moves.length && before.every((m, i) => m.from + m.to + (m.promotion ?? '') === s.moves[i]);
+  if (!same || (s.result && !game.status().over)) {
+    const next = new Game();
+    for (const m of s.moves) next.move(m.slice(0, 2), m.slice(2, 4), m[4]);
+    next.setHeader('White', s.you === 'w' ? 'You' : 'Friend');
+    next.setHeader('Black', s.you === 'b' ? 'You' : 'Friend');
+    if (s.result && ENDINGS[s.reason]) {
+      const loser = s.result === '1-0' ? 'Black' : 'White';
+      next.setHeader('Result', s.result);
+      next.setHeader('Termination', ENDINGS[s.reason](loser));
+    }
+    game = next;
+    // Your friend's move gets the move sound; yours already played when you made it.
+    const last = game.lastMove();
+    if (s.moves.length > before.length && last && last.color !== s.you) {
+      if (game.status().over) sounds.play('end');
+      else sounds.play(last.san.includes('+') ? 'check' : last.captured ? 'capture' : 'move');
+    } else if (game.status().over) {
+      sounds.play('end'); // a resignation, a draw or a flag
+    }
+  }
+  update();
+}
+
+// How long your friend has been gone, as of now, or null.
+const goneFor = () => (live?.state?.goneFor == null ? null : live.state.goneFor + Date.now() - live.received);
+
+function liveStatus(status) {
+  if (status.over) return `${status.text} ${mode.note ?? ''}`.trim();
+  if (!live) return mode.note ?? 'This live game has ended.';
+  if (!live.online) return 'Connecting to the room…';
+  const s = live.state;
+  if (!s || s.waiting) return `Waiting for your friend. Room code: ${mode.code}`;
+  const gone = goneFor();
+  if (gone !== null) return gone >= GONE_MS ? 'Your friend has gone. You can claim the win, or keep waiting.' : 'Your friend lost connection. Waiting for them…';
+  if (s.draw && s.draw !== mode.you) return 'Your friend offers a draw.';
+  if (game.turn() !== mode.you) return 'Your friend’s move.';
+  return game.checkSquare() ? 'Your move. You’re in check.' : 'Your move.';
+}
+
+const clockText = (ms) => {
+  const t = Math.ceil(ms / 1000);
+  return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+};
+
+// The bar under the controls: clocks, the room code to share, a draw offer, a claim.
+function showLive() {
+  const s = isLive() && live ? live.state : null;
+  const over = game.status().over;
+  $('live-bar').hidden = !s;
+  if (!s) return;
+  const clock = s.clock && !s.waiting ? s.clock : null;
+  $('clocks').hidden = !clock;
+  if (clock) {
+    const passed = Date.now() - live.received;
+    for (const c of ['w', 'b']) {
+      const left = clock.running === c && !over ? Math.max(0, clock[c] - passed) : clock[c];
+      const el = $(`clock-${c}`);
+      el.textContent = `${c === 'w' ? 'White' : 'Black'}${c === mode.you ? ' (you)' : ''} ${clockText(left)}`;
+      el.classList.toggle('running', clock.running === c && !over);
+      el.classList.toggle('low', left < 20000);
+    }
+  }
+  $('btn-share').hidden = !s.waiting;
+  const offered = !over && s.draw && s.draw !== mode.you;
+  $('btn-draw-accept').hidden = !offered;
+  $('btn-draw-decline').hidden = !offered;
+  $('btn-claim').hidden = over || !(goneFor() >= GONE_MS);
+}
+setInterval(() => {
+  if (isLive() && live?.state && (live.state.clock || live.state.goneFor !== null)) {
+    showLive();
+    if (live.state.goneFor !== null) $('status').textContent = liveStatus(game.status());
+  }
+}, 250);
+
+$('btn-share').addEventListener('click', async () => {
+  const url = `${location.origin}/?room=${mode.code}`;
+  const text = `Play chess with me. Room code: ${mode.code}`;
+  try {
+    if (navigator.share) await navigator.share({ text, url });
+    else {
+      await navigator.clipboard.writeText(`${text} ${url}`);
+      $('status').textContent = 'Copied. Send it to your friend.';
+    }
+  } catch {
+    // Sharing cancelled.
+  }
+});
+$('btn-draw').addEventListener('click', () => {
+  $('menu').close();
+  live?.room.send({ type: 'draw' });
+});
+$('btn-draw-accept').addEventListener('click', () => live?.room.send({ type: 'draw' }));
+$('btn-draw-decline').addEventListener('click', () => live?.room.send({ type: 'decline' }));
+$('btn-claim').addEventListener('click', () => live?.room.send({ type: 'claim' }));
+
+function openLive(code = '') {
+  $('menu').close();
+  $('live-code').value = code;
+  $('live-msg').textContent = '';
+  $('live').showModal();
+}
+$('btn-live').addEventListener('click', () => openLive());
+$('btn-live-close').addEventListener('click', () => $('live').close());
+
+const ROOM_ERRORS = {
+  'no-room': 'There’s no room with that code. Check it with your friend.',
+  'slow-down': 'Too many tries. Wait a minute, then try again.',
+  offline: 'You’re offline. Live games need the internet.',
+};
+
+function enterRoom(code, token) {
+  stopThinking();
+  quitEngine();
+  game = new Game();
+  mode = { opponent: 'live', code, token, you: null, recorded: false };
+  $('live').close();
+  startLive();
+  update();
+}
+
+$('btn-live-create').addEventListener('click', async () => {
+  if (!leaveGame()) return;
+  $('live-msg').textContent = 'Starting a room…';
+  const color = document.querySelector('input[name="live-side"]:checked').value;
+  const made = await createRoom(color, $('live-clock').value || null);
+  if (made.error) {
+    $('live-msg').textContent = ROOM_ERRORS[made.error] ?? 'Rooms aren’t available right now. Try again later.';
+    return;
+  }
+  enterRoom(made.code, made.token);
+});
+
+$('btn-live-join').addEventListener('click', async () => {
+  const code = cleanCode($('live-code').value);
+  if (!validCode(code)) {
+    $('live-msg').textContent = 'A room code is 6 letters and numbers.';
+    return;
+  }
+  // Coming back to your own room keeps your seat.
+  if (isLive() && mode.code === code && live) {
+    $('live').close();
+    return;
+  }
+  $('live-msg').textContent = 'Looking for the room…';
+  const found = await findRoom(code);
+  if (found.error) {
+    $('live-msg').textContent = ROOM_ERRORS[found.error] ?? 'Rooms aren’t available right now. Try again later.';
+    return;
+  }
+  if (!leaveGame()) return;
+  enterRoom(code, null);
 });
 
 // The coach: hints during a game against the computer, a review after any game, and "explain"
@@ -410,7 +650,7 @@ async function runCoach(kind, ply) {
     $('coach-status').textContent = '';
     return;
   }
-  const side = vsComputer() ? mode.you : null;
+  const side = mode.you ?? null;
   showCoach(kind === 'review' ? localReview(moves, analysis.facts, coachLevel, side) : localExplain(moves, analysis.facts, coachLevel, ply), history, 'Notes from the computer on this device.');
   $('coach-status').textContent = kind === 'review' ? WHY_LOCAL[ai.error] ?? 'The AI coach isn’t available right now. Here are the free notes.' : '';
   $('coach-signin').hidden = ai.error !== 'signed-out';
@@ -598,7 +838,8 @@ $('btn-load-go').addEventListener('click', () => {
     $('load-error').hidden = false;
     return;
   }
-  // A loaded game carries on as two players on this device, and isn't added to your games.
+  // A loaded game opens on a free board, and isn't added to your games.
+  if (!leaveLive()) return;
   stopThinking();
   quitEngine();
   game = loaded;
@@ -687,8 +928,11 @@ new MutationObserver(applyTheme).observe(document.documentElement, { attributes:
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
 applyTheme();
 
-// Back from signing in: tidy the address.
-if (location.search.includes('signed-in')) history.replaceState(null, '', '/');
+// Back from signing in: tidy the address. A shared room link opens the join box with its code.
+const linkCode = new URLSearchParams(location.search).get('room');
+if (location.search) history.replaceState(null, '', '/');
+if (isLive() && !mode.recorded && mode.code) startLive();
+if (linkCode && !(isLive() && mode.code === cleanCode(linkCode) && !mode.recorded)) openLive(cleanCode(linkCode));
 
 update();
 computerMove(); // if the computer was about to move when the page closed
