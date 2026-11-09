@@ -37,8 +37,24 @@ export class Game {
     }
   }
 
+  // Taking a move back also takes back a resignation.
   undo() {
+    this.chess.removeHeader('Termination');
     return this.chess.undo();
+  }
+
+  // `color` ('w' or 'b') gives up.
+  resign(color) {
+    this.chess.setHeader('Result', color === 'w' ? '0-1' : '1-0');
+    this.chess.setHeader('Termination', `${color === 'w' ? 'White' : 'Black'} resigned`);
+  }
+
+  setHeader(key, value) {
+    this.chess.setHeader(key, value);
+  }
+
+  fen() {
+    return this.chess.fen();
   }
 
   history() {
@@ -65,6 +81,9 @@ export class Game {
     const c = this.chess;
     const side = c.turn() === 'w' ? 'White' : 'Black';
     const other = c.turn() === 'w' ? 'Black' : 'White';
+    // A game that ended some other way, such as a resignation, says how in its headers.
+    const { Result, Termination } = c.getHeaders();
+    if (Termination && Result && Result !== '*') return { over: true, result: Result, text: `${Termination}.` };
     if (c.isCheckmate()) return { over: true, result: c.turn() === 'w' ? '0-1' : '1-0', text: `Checkmate. ${other} wins.` };
     if (c.isStalemate()) return { over: true, result: '1/2-1/2', text: 'Stalemate. Draw.' };
     if (c.isInsufficientMaterial()) return { over: true, result: '1/2-1/2', text: 'Draw: not enough pieces to mate.' };

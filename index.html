@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Chess</title>
-  <meta name="description" content="Open-source chess in the browser. Two players on one device for now; a computer opponent at your level and a coach are coming.">
+  <meta name="description" content="Open-source chess in the browser. Play the computer at your level, a twin that opens like you, or a friend on the same device.">
   <meta name="theme-color" content="#0d1117">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
@@ -40,9 +40,11 @@
 
   <dialog id="menu" aria-labelledby="menu-title">
     <h2 id="menu-title">Chess</h2>
-    <p class="muted">Two players on one device. Tap a piece, then a square, or drag it. Playing the computer at your level, a coach, and live games with a friend come in the next updates.</p>
+    <p class="muted">Play the computer at your level, your twin, or a friend on this device. Tap a piece, then a square, or drag it. A coach and live games with a friend come in the next updates.</p>
     <div class="actions">
       <button type="button" id="btn-new" class="primary">New game</button>
+      <button type="button" id="btn-resign" hidden>Resign</button>
+      <button type="button" id="btn-level">Your level and twin</button>
       <button type="button" id="btn-save">Save game (PGN)</button>
       <button type="button" id="btn-load">Load a game</button>
     </div>
@@ -53,6 +55,51 @@
     <p class="muted small" id="ios-install" hidden>To install: tap Share, then Add to Home Screen.</p>
     <p class="muted small"><a href="#" id="about-link">About and credits</a></p>
     <div class="actions"><button type="button" id="btn-menu-close">Close</button></div>
+  </dialog>
+
+  <dialog id="newgame" aria-labelledby="newgame-title">
+    <h2 id="newgame-title">New game</h2>
+    <fieldset class="choices">
+      <legend>Play against</legend>
+      <label><input type="radio" name="opponent" value="computer" id="opp-computer" checked> The computer</label>
+      <label><input type="radio" name="opponent" value="twin" id="opp-twin"> Your twin</label>
+      <label><input type="radio" name="opponent" value="friend"> A friend on this device</label>
+    </fieldset>
+    <p class="muted small" id="newgame-rating"></p>
+    <p class="muted small" id="twin-hint"></p>
+    <fieldset class="choices">
+      <legend>You play</legend>
+      <label><input type="radio" name="side" value="w" checked> White</label>
+      <label><input type="radio" name="side" value="b"> Black</label>
+      <label><input type="radio" name="side" value="random"> Either</label>
+    </fieldset>
+    <div class="actions">
+      <button type="button" id="btn-newgame-go" class="primary">Start</button>
+      <button type="button" id="btn-newgame-cancel">Cancel</button>
+    </div>
+  </dialog>
+
+  <dialog id="level" aria-labelledby="level-title">
+    <h2 id="level-title">Your level and twin</h2>
+    <p id="level-now"></p>
+    <p class="small" id="level-msg" role="status"></p>
+    <h3>Pick a level</h3>
+    <div class="actions levels" id="levels"></div>
+    <h3>From chess.com</h3>
+    <input type="text" id="cc-user" class="text" placeholder="Your chess.com username" autocomplete="off" autocapitalize="none" spellcheck="false" aria-label="chess.com username">
+    <div class="actions">
+      <button type="button" id="btn-cc-rating">Use my rating</button>
+      <button type="button" id="btn-cc-twin">Build my twin from my games</button>
+    </div>
+    <p class="muted small">This asks chess.com directly, and your username stays on this device.
+      chess.com ratings only roughly match this app's, so yours settles over your first games.</p>
+    <h3>Your data</h3>
+    <p class="muted small" id="twin-now"></p>
+    <div class="actions">
+      <button type="button" id="btn-export">Save all my games (PGN)</button>
+      <button type="button" id="btn-delete">Delete my data</button>
+    </div>
+    <div class="actions"><button type="button" id="btn-level-close" class="primary">Close</button></div>
   </dialog>
 
   <dialog id="load" aria-labelledby="load-title">
@@ -80,7 +127,14 @@
     <p>Rules by <a href="https://github.com/jhlywa/chess.js">chess.js</a> (BSD-2-Clause,
       Jeff Hlywa); its license is in <a href="vendor/chess.LICENSE">vendor/chess.LICENSE</a>.
       The pieces, board and sounds are original to this app.</p>
-    <p class="muted small">Nothing you do here is sent anywhere. Your current game is kept on this device only.</p>
+    <p>The computer player is <a href="https://github.com/official-stockfish/Stockfish">Stockfish</a>
+      (GPL-3.0, the Stockfish developers), built for the browser by
+      <a href="https://github.com/nmrugg/stockfish.js">Stockfish.js</a>: the exact source of the
+      copy in this app is <a href="https://github.com/nmrugg/stockfish.js/tree/v19.0.1">version 19.0.1</a>
+      (the "lite, single-threaded" build). Its license is in
+      <a href="vendor/stockfish/COPYING.txt">vendor/stockfish/COPYING.txt</a>.</p>
+    <p class="muted small">Your games, rating and twin are kept on this device only. Nothing is
+      sent anywhere, except that "From chess.com" asks chess.com for your public rating and games.</p>
     <div class="actions"><button type="button" id="btn-about-close" class="primary">Close</button></div>
   </dialog>
 

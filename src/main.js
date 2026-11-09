@@ -1,14 +1,29 @@
-// The page: board, controls, move list, save and load, sound, the installable app and the
-// site header.
+// The page: board, controls, move list, the computer opponent, your level and twin, save and
+// load, sound, the installable app and the site header.
 
 import { Sounds } from './audio.js';
 import { Board } from './board.js';
+import { cleanUsername, fetchGames, fetchRating } from './chesscom.js';
+import { browserEngine } from './engine.js';
 import { Game } from './game.js';
+import { chooseMove } from './opponent.js';
 import { pieceSvg } from './pieces.js';
+import { LEVELS, afterGame, fromChessCom, startingPlayer } from './rating.js';
+import { addGame, bookMove } from './twin.js';
 
 const THEME_MODULE = 'https://cdn.jsdelivr.net/gh/nickprignano/prignano-theme@4c2effc3829269e40ad663baf130a6b899a402bb/index.js';
 const SAVE_KEY = 'chess-current-game';
 const FLIP_KEY = 'chess-orientation';
+// Everything below stays on this device. "Delete my data" clears all of it.
+const MODE_KEY = 'chess-mode'; // who the current game is against
+const PLAYER_KEY = 'chess-player'; // your rating
+const GAMES_KEY = 'chess-games'; // finished games, for "Save all my games" and the twin
+const TWIN_KEY = 'chess-twin'; // the twin's opening book
+const USER_KEY = 'chess-com-user'; // your chess.com username, if you gave one
+const ALL_KEYS = [SAVE_KEY, FLIP_KEY, MODE_KEY, PLAYER_KEY, GAMES_KEY, TWIN_KEY, USER_KEY, 'chess-muted'];
+const MAX_GAMES = 200;
+const MAX_CHESSCOM_GAMES = 500;
+const MIN_THINK_MS = 500; // so the computer's reply doesn't land the instant you let go
 
 const $ = (id) => document.getElementById(id);
 const sounds = new Sounds();
@@ -29,6 +44,15 @@ function save(key, value) {
   }
 }
 
+function loadJson(key) {
+  try {
+    return JSON.parse(load(key));
+  } catch {
+    return null;
+  }
+}
+const saveJson = (key, value) => save(key, JSON.stringify(value));
+
 // The game in progress survives a reload. A saved game that no longer loads is dropped.
 let game;
 try {
@@ -37,9 +61,18 @@ try {
   game = new Game();
 }
 let orientation = load(FLIP_KEY) === 'b' ? 'b' : 'w';
+// A friend: { opponent: 'friend' }. The computer or your twin: { opponent: 'computer' | 'twin',
+// you: 'w' | 'b', rating (the computer's), rated, recorded, outOfBook, note }.
+let mode = loadJson(MODE_KEY) ?? { opponent: 'friend' };
+let player = loadJson(PLAYER_KEY); // { rating, rd, vol, games }, or null before you set a level
+let games = loadJson(GAMES_KEY) ?? []; // [{ pgn, you }], newest last
+let twin = loadJson(TWIN_KEY); // { book, games }, or null
+
+const vsComputer = () => mode.opponent !== 'friend';
+const yourTurn = () => !vsComputer() || (game.turn() === mode.you && !thinking);
 
 const board = new Board($('board'), {
-  targets: (square) => (game.status().over ? [] : game.targets(square)),
+  targets: (square) => (game.status().over || !yourTurn() ? [] : game.targets(square)),
   onMove: (from, to) => {
     if (game.needsPromotion(from, to)) askPromotion(from, to);
     else play(from, to);
@@ -54,6 +87,89 @@ function play(from, to, promotion) {
   else if (move.san.includes('+')) sounds.play('check');
   else sounds.play(move.captured ? 'capture' : 'move');
   update();
+  computerMove();
+}
+
+// The computer: one engine in a worker, started for a game and shut down after it, so it only
+// takes memory while you're playing it.
+let engine = null;
+let thinking = false;
+let thinkToken = 0;
+
+function getEngine() {
+  if (!engine) {
+    engine = browserEngine();
+    engine.ready = engine.start();
+  }
+  return engine;
+}
+function quitEngine() {
+  engine?.quit();
+  engine = null;
+}
+// Stops a move the computer is still working out (Undo, New game).
+function stopThinking() {
+  if (!thinking) return;
+  thinkToken++;
+  thinking = false;
+  quitEngine();
+}
+
+async function computerMove() {
+  if (!vsComputer() || game.status().over || game.turn() === mode.you || thinking) return;
+  const token = ++thinkToken;
+  thinking = true;
+  update();
+  const started = Date.now();
+  try {
+    let uci = null;
+    if (mode.opponent === 'twin' && !mode.outOfBook) {
+      uci = bookMove(twin?.book ?? {}, game.fen());
+      // Once out of your book, it stays out for the rest of the game.
+      if (!uci) mode.outOfBook = true;
+    }
+    if (!uci) {
+      const e = getEngine();
+      await e.ready;
+      uci = await chooseMove(e, game.fen(), mode.rating);
+    }
+    await new Promise((r) => setTimeout(r, Math.max(0, MIN_THINK_MS - (Date.now() - started))));
+    if (token !== thinkToken) return;
+    thinking = false;
+    play(uci.slice(0, 2), uci.slice(2, 4), uci[4]);
+  } catch (error) {
+    if (token !== thinkToken) return;
+    thinking = false;
+    quitEngine();
+    update();
+    $('status').textContent = `${error.message} Tap Undo, or start a new game.`;
+  }
+}
+
+// Once per game, when it ends: keep it for "Save all my games", and against the computer,
+// update your rating and teach your twin your moves.
+function recordGame() {
+  mode.recorded = true;
+  const pgn = game.pgn();
+  games.push({ pgn, you: vsComputer() ? mode.you : null });
+  games = games.slice(-MAX_GAMES);
+  saveJson(GAMES_KEY, games);
+  if (!vsComputer()) return;
+  quitEngine();
+  const { result } = game.status();
+  const score = result === '1/2-1/2' ? 0.5 : (result === '1-0') === (mode.you === 'w') ? 1 : 0;
+  if (mode.rated && player) {
+    const before = player.rating;
+    player = afterGame(player, mode.rating, score);
+    saveJson(PLAYER_KEY, player);
+    mode.note = `Your rating: ${before} → ${player.rating}.`;
+  } else {
+    mode.note = 'Not rated, because a move was taken back.';
+  }
+  twin ??= { book: {}, games: 0 };
+  addGame(twin.book, pgn, mode.you);
+  twin.games++;
+  saveJson(TWIN_KEY, twin);
 }
 
 function askPromotion(from, to) {
@@ -76,9 +192,18 @@ function askPromotion(from, to) {
 
 function update() {
   const status = game.status();
-  board.set({ board: game.board(), orientation, lastMove: game.lastMove(), check: game.checkSquare() });
-  $('status').textContent = status.text;
-  $('btn-undo').disabled = game.history().length === 0;
+  if (status.over && !mode.recorded) recordGame();
+  board.set({ board: game.board(), orientation, lastMove: game.lastMove(), check: game.checkSquare(), locked: !yourTurn() });
+  let text = status.text;
+  if (vsComputer()) {
+    const them = mode.opponent === 'twin' ? 'Your twin' : 'The computer';
+    if (status.over) text = `${status.text} ${mode.note ?? ''}`;
+    else if (thinking) text = `${them} is thinking…`;
+    else if (game.turn() === mode.you) text = game.checkSquare() ? 'Your move. You’re in check.' : 'Your move.';
+  }
+  $('status').textContent = text;
+  const yourMoves = game.history().filter((m) => !vsComputer() || m.color === mode.you).length;
+  $('btn-undo').disabled = yourMoves === 0 || (vsComputer() && mode.recorded);
   const list = $('moves');
   list.innerHTML = '';
   const history = game.history();
@@ -95,11 +220,20 @@ function update() {
   }
   list.scrollTop = list.scrollHeight;
   save(SAVE_KEY, game.pgn());
+  saveJson(MODE_KEY, mode);
 }
 
+// Against the computer, Undo takes back its reply too, and the game is no longer rated.
 $('btn-undo').addEventListener('click', () => {
-  game.undo();
+  stopThinking();
+  if (!vsComputer()) {
+    game.undo();
+  } else {
+    do game.undo(); while (game.history().length && game.turn() !== mode.you);
+    mode.rated = false;
+  }
   update();
+  computerMove();
 });
 $('btn-flip').addEventListener('click', () => {
   orientation = orientation === 'w' ? 'b' : 'w';
@@ -120,23 +254,169 @@ $('btn-mute').addEventListener('click', () => {
 addEventListener('pointerdown', () => sounds.unlock(), { capture: true });
 addEventListener('keydown', () => sounds.unlock(), { capture: true });
 
-// Menu: new game, save and load.
-$('btn-menu').addEventListener('click', () => $('menu').showModal());
+// Menu: new game, resign, your level, save and load.
+$('btn-menu').addEventListener('click', () => {
+  $('btn-resign').hidden = !vsComputer() || game.status().over;
+  $('menu').showModal();
+});
 $('btn-menu-close').addEventListener('click', () => $('menu').close());
-$('btn-new').addEventListener('click', () => {
-  if (game.history().length && !game.status().over && !confirm('Start a new game? The current one will be lost unless you save it.')) return;
-  game = new Game();
+$('btn-resign').addEventListener('click', () => {
+  if (!confirm('Resign this game?')) return;
+  stopThinking();
+  game.resign(mode.you);
   $('menu').close();
   update();
 });
-$('btn-save').addEventListener('click', () => {
-  const blob = new Blob([game.pgn() + '\n'], { type: 'application/x-chess-pgn' });
+
+// A rated game you leave halfway counts as a loss, so leaving can't dodge one.
+function leaveGame() {
+  if (!game.history().length || game.status().over) return true;
+  if (vsComputer() && !game.history().some((m) => m.color === mode.you)) return true;
+  if (vsComputer() && mode.rated) {
+    if (!confirm('Start a new game? The current one counts as a loss.')) return false;
+    stopThinking();
+    game.resign(mode.you);
+    update();
+    return true;
+  }
+  return confirm('Start a new game? The current one will be lost unless you save it.');
+}
+
+$('btn-new').addEventListener('click', () => {
+  $('menu').close();
+  const noTwin = !twin?.games;
+  $('opp-twin').disabled = noTwin;
+  if (noTwin && $('opp-twin').checked) $('opp-computer').checked = true;
+  $('twin-hint').textContent = noTwin
+    ? 'Your twin needs some of your games first: play the computer, or add your chess.com games under Your level.'
+    : `Your twin knows the openings from ${twin.games} of your games. It opens like you, then plays like a typical player at your rating.`;
+  $('newgame-rating').textContent = player ? `The computer plays at your rating, ${player.rating}.` : 'You’ll pick your level first.';
+  $('newgame').showModal();
+});
+$('btn-newgame-cancel').addEventListener('click', () => $('newgame').close());
+$('btn-newgame-go').addEventListener('click', () => {
+  const opponent = document.querySelector('input[name="opponent"]:checked').value;
+  let you = document.querySelector('input[name="side"]:checked').value;
+  if (opponent !== 'friend' && !player) {
+    $('newgame').close();
+    openLevel('Pick a level to start. It adjusts after every game.');
+    return;
+  }
+  if (!leaveGame()) return;
+  $('newgame').close();
+  stopThinking();
+  quitEngine();
+  game = new Game();
+  if (opponent === 'friend') {
+    mode = { opponent };
+  } else {
+    if (you === 'random') you = Math.random() < 0.5 ? 'w' : 'b';
+    mode = { opponent, you, rating: player.rating, rated: true, recorded: false, outOfBook: false };
+    const them = `${opponent === 'twin' ? 'Your twin' : 'Computer'} (${player.rating})`;
+    game.setHeader('White', you === 'w' ? 'You' : them);
+    game.setHeader('Black', you === 'b' ? 'You' : them);
+    orientation = you;
+    save(FLIP_KEY, orientation);
+  }
+  update();
+  computerMove();
+});
+
+// Your level and twin.
+function showLevel() {
+  $('level-now').textContent = player
+    ? `Your rating is ${player.rating}${player.games ? `, after ${player.games} game${player.games === 1 ? '' : 's'} here` : ''}. It adjusts after every game against the computer.`
+    : 'You don’t have a rating yet. Pick a level, or bring your chess.com rating.';
+  $('twin-now').textContent = twin?.games ? `Your twin knows the openings from ${twin.games} of your games.` : 'Your twin has no games yet.';
+}
+function openLevel(message) {
+  $('level-msg').textContent = message ?? '';
+  $('cc-user').value = load(USER_KEY) ?? '';
+  showLevel();
+  $('level').showModal();
+}
+for (const level of LEVELS) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.textContent = level.name;
+  button.addEventListener('click', () => {
+    player = startingPlayer(level.rating, 350);
+    saveJson(PLAYER_KEY, player);
+    $('level-msg').textContent = `Starting at ${level.rating}. Your first 10 games move it quickly.`;
+    showLevel();
+  });
+  $('levels').append(button);
+}
+$('btn-level').addEventListener('click', () => {
+  $('menu').close();
+  openLevel();
+});
+$('btn-level-close').addEventListener('click', () => $('level').close());
+
+// Runs a chess.com request with the buttons locked and the outcome in the message line.
+async function withChessCom(work) {
+  let username;
+  try {
+    username = cleanUsername($('cc-user').value);
+  } catch (e) {
+    $('level-msg').textContent = e.message;
+    return;
+  }
+  save(USER_KEY, username);
+  $('btn-cc-rating').disabled = $('btn-cc-twin').disabled = true;
+  $('level-msg').textContent = 'Asking chess.com…';
+  try {
+    $('level-msg').textContent = await work(username);
+  } catch (e) {
+    $('level-msg').textContent = e.message;
+  }
+  $('btn-cc-rating').disabled = $('btn-cc-twin').disabled = false;
+  showLevel();
+}
+$('btn-cc-rating').addEventListener('click', () => withChessCom(async (username) => {
+  const { rating, kind } = await fetchRating(username);
+  player = startingPlayer(fromChessCom(rating, kind), 200);
+  saveJson(PLAYER_KEY, player);
+  return `chess.com ${kind} ${rating} is about ${player.rating} here. That’s a rough match, and it settles as you play.`;
+}));
+$('btn-cc-twin').addEventListener('click', () => withChessCom(async (username) => {
+  const fromChessComGames = (await fetchGames(username)).slice(-MAX_CHESSCOM_GAMES);
+  // Rebuilt from scratch: your chess.com games plus the games you've played the computer here.
+  const all = [...fromChessComGames, ...games.filter((g) => g.you).map((g) => ({ pgn: g.pgn, color: g.you }))];
+  twin = { book: {}, games: all.length };
+  for (const g of all) addGame(twin.book, g.pgn, g.color);
+  saveJson(TWIN_KEY, twin);
+  return `Read ${fromChessComGames.length} games from your last 6 months on chess.com.`;
+}));
+
+$('btn-export').addEventListener('click', () => {
+  if (!games.length) {
+    $('level-msg').textContent = 'No finished games yet.';
+    return;
+  }
+  download(games.map((g) => g.pgn).join('\n\n') + '\n', 'chess-all-games');
+});
+$('btn-delete').addEventListener('click', () => {
+  if (!confirm('Delete your rating, your twin, your saved games and settings from this device?')) return;
+  for (const key of ALL_KEYS) {
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      // Storage blocked: there's nothing stored.
+    }
+  }
+  location.reload();
+});
+
+function download(text, name) {
+  const blob = new Blob([text], { type: 'application/x-chess-pgn' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `chess-${new Date().toISOString().slice(0, 10)}.pgn`;
+  a.download = `${name}-${new Date().toISOString().slice(0, 10)}.pgn`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-});
+}
+$('btn-save').addEventListener('click', () => download(game.pgn() + '\n', 'chess'));
 $('btn-load').addEventListener('click', () => {
   $('menu').close();
   $('load-text').value = '';
@@ -150,13 +430,19 @@ $('load-file').addEventListener('change', async () => {
 });
 $('btn-load-cancel').addEventListener('click', () => $('load').close());
 $('btn-load-go').addEventListener('click', () => {
+  let loaded;
   try {
-    game = new Game($('load-text').value);
+    loaded = new Game($('load-text').value);
   } catch (e) {
     $('load-error').textContent = e.message;
     $('load-error').hidden = false;
     return;
   }
+  // A loaded game carries on as two players on this device, and isn't added to your games.
+  stopThinking();
+  quitEngine();
+  game = loaded;
+  mode = { opponent: 'friend', recorded: true };
   $('load').close();
   update();
 });
@@ -242,3 +528,4 @@ matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme
 applyTheme();
 
 update();
+computerMove(); // if the computer was about to move when the page closed
