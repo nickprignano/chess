@@ -3,7 +3,7 @@
 //   node tools/sw-version.mjs
 // test/pwa.test.mjs fails if this hasn't been run.
 import { createHash } from 'node:crypto';
-import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -26,15 +26,15 @@ export function appFiles(root = '.') {
       else if (APP_FILE.test(name)) files.push(path);
     }
   })('');
-  // The page is served at "/", never at "/index.html" (which redirects).
-  return files.map((path) => (path === 'index.html' ? '/' : path));
+  // Pages are served without ".html" (which redirects): "/" for index.html, "privacy" for privacy.html.
+  return files.map((path) => (path === 'index.html' ? '/' : path.replace(/\.html$/, '')));
 }
 
 export function version(root = '.', files = appFiles(root)) {
   const hash = createHash('sha256');
   for (const path of files) {
     hash.update(path);
-    hash.update(readFileSync(join(root, path === '/' ? 'index.html' : path)));
+    hash.update(readFileSync(join(root, path === '/' ? 'index.html' : existsSync(join(root, path)) ? path : `${path}.html`)));
   }
   return hash.digest('hex').slice(0, 12);
 }

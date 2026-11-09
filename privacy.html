@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Chess: privacy</title>
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/nickprignano/prignano-theme@4c2effc3829269e40ad663baf130a6b899a402bb/theme.css">
+</head>
+<body class="page">
+  <main class="prose">
+    <h1>Privacy</h1>
+    <p>This chess app is made for a family, and children may use it. It collects as little as it can.</p>
+
+    <h2>What stays on your device</h2>
+    <p>Your games, your rating, your twin, your settings and any chess.com username you type are
+      kept in your browser on this device. They never reach our server. "Delete my data", under
+      Menu, Your level, removes them.</p>
+
+    <h2>chess.com</h2>
+    <p>If you use "From chess.com", your browser asks chess.com directly for that player's public
+      rating and games. chess.com sees that request, as it would if you visited their site.</p>
+
+    <h2>The AI coach (family members only)</h2>
+    <p>Signing in uses Cloudflare Access with Google or a code sent by email, and only people on the
+      family list can sign in. Children under 13 use the coach through a parent's sign-in.</p>
+    <p>For a review or an "explain", our server sends Claude, an AI made by Anthropic, only the
+      moves of the game, the computer's checks of them, and the coach level. Never a name, email,
+      username or anything you typed. Anthropic doesn't train on this data, and keeps it for a
+      limited time (about 30 days) under its policy. Reviews are labelled as written by AI.</p>
+    <p>To keep the daily limits, the server stores a counter of today's reviews under a scrambled
+      key made from your sign-in (not your email). Counters are dropped the next day, and "Delete
+      my data" removes yours straight away.</p>
+
+    <h2>The idea box</h2>
+    <p>Ideas you send are stored on our server for up to a year, without your name or email, for
+      the person who builds the app to read. They are never sent to the AI.</p>
+
+    <h2>What we don't do</h2>
+    <p>No ads, no analytics, no trackers, and no request logs. The site header comes from a pinned
+      copy of the site theme on jsDelivr.</p>
+
+    <p><a href="/">Back to the game</a></p>
+  </main>
+</body>
+</html>

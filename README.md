@@ -7,14 +7,19 @@ offline.
 What works now: play the computer at your level (Stockfish, on your device), a twin that opens
 the way you do, or a friend on the same device. Your rating starts from a level you pick or
 your chess.com rating and adjusts after every game (Glicko-2). Every rule, undo, flip, and
-saving or loading games as PGN. Coming next, in order: a coach, and live games with a friend
-over a room code. The plan is in [docs/SPEC.md](docs/SPEC.md).
+saving or loading games as PGN. A coach gives hints during the game and reviews it afterwards:
+free notes from the engine on your device, or reviews written by Claude for signed-in family
+members (with a daily spend cap). An idea box sends suggestions to the owner. Coming next: live
+games with a friend over a room code. The plan is in [docs/SPEC.md](docs/SPEC.md).
 
 ## Run it locally
 
 Serve the folder with any static server, for example `npx http-server -c-1 .`, and open the
 address it prints. Opening `index.html` as a file doesn't work, because browsers block ES
 modules from `file://`.
+
+The AI coach and idea box need the Worker: run `npx wrangler dev` instead, which serves the
+app and runs `worker/` together. Setup for the real site is in [docs/DEPLOY.md](docs/DEPLOY.md).
 
 ## Checks
 

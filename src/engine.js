@@ -13,8 +13,11 @@ export class Engine {
 
   // Call with every line the engine prints.
   receive(line) {
-    const m = line.match(/^info .*\bmultipv (\d+) .*\bscore (cp|mate) (-?\d+).* pv (\S+)/);
-    if (m) this.info.set(Number(m[1]), { move: m[4], score: m[2] === 'mate' ? mateScore(Number(m[3])) : Number(m[3]) });
+    const m = line.match(/^info .*\bmultipv (\d+) .*\bscore (cp|mate) (-?\d+).* pv (.+)$/);
+    if (m) {
+      const pv = m[4].trim().split(' ');
+      this.info.set(Number(m[1]), { move: pv[0], pv, score: m[2] === 'mate' ? mateScore(Number(m[3])) : Number(m[3]) });
+    }
     if (this.waiting && line.startsWith(this.waiting.until)) {
       const { resolve } = this.waiting;
       this.waiting = null;

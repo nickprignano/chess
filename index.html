@@ -27,6 +27,7 @@
     <div class="bar" role="toolbar" aria-label="Game controls">
       <p class="status" id="status" aria-live="polite">White to move.</p>
       <button type="button" id="btn-menu">Menu</button>
+      <button type="button" id="btn-hint" hidden>Hint</button>
       <button type="button" id="btn-undo" aria-label="Take back the last move">Undo</button>
       <button type="button" id="btn-flip" aria-label="Turn the board around">Flip</button>
       <button type="button" id="btn-mute" aria-label="Mute sound" aria-pressed="false">Sound</button>
@@ -40,13 +41,15 @@
 
   <dialog id="menu" aria-labelledby="menu-title">
     <h2 id="menu-title">Chess</h2>
-    <p class="muted">Play the computer at your level, your twin, or a friend on this device. Tap a piece, then a square, or drag it. A coach and live games with a friend come in the next updates.</p>
+    <p class="muted">Play the computer at your level, your twin, or a friend on this device. Tap a piece, then a square, or drag it. After a game, the coach reviews it; tap any move for its view of that move. Live games with a friend come next.</p>
     <div class="actions">
       <button type="button" id="btn-new" class="primary">New game</button>
+      <button type="button" id="btn-review" hidden>Review this game</button>
       <button type="button" id="btn-resign" hidden>Resign</button>
       <button type="button" id="btn-level">Your level and twin</button>
       <button type="button" id="btn-save">Save game (PGN)</button>
       <button type="button" id="btn-load">Load a game</button>
+      <button type="button" id="btn-idea">Send an idea</button>
     </div>
     <p class="actions" id="app-actions" hidden>
       <button type="button" id="btn-update" class="primary" hidden>Update the app</button>
@@ -55,6 +58,28 @@
     <p class="muted small" id="ios-install" hidden>To install: tap Share, then Add to Home Screen.</p>
     <p class="muted small"><a href="#" id="about-link">About and credits</a></p>
     <div class="actions"><button type="button" id="btn-menu-close">Close</button></div>
+  </dialog>
+
+  <dialog id="coach" aria-labelledby="coach-title">
+    <h2 id="coach-title">Game review</h2>
+    <p class="muted small" id="coach-status" role="status"></p>
+    <p class="small" id="coach-signin" hidden><a href="/coach/">Sign in</a></p>
+    <div id="coach-body" class="coach-body"></div>
+    <p class="muted small" id="coach-source"></p>
+    <div class="actions"><button type="button" id="btn-coach-close" class="primary">Close</button></div>
+  </dialog>
+
+  <dialog id="idea" aria-labelledby="idea-title">
+    <h2 id="idea-title">Send an idea</h2>
+    <p class="muted small">Got an idea to make this app better? It goes to the person who builds it.
+      Family members only: you may need to sign in.</p>
+    <textarea id="idea-text" class="text" rows="4" maxlength="500" aria-label="Your idea"></textarea>
+    <p class="small" id="idea-msg" role="status"></p>
+    <p class="small" id="idea-signin" hidden><a href="/coach/">Sign in</a></p>
+    <div class="actions">
+      <button type="button" id="btn-idea-send" class="primary">Send</button>
+      <button type="button" id="btn-idea-cancel">Close</button>
+    </div>
   </dialog>
 
   <dialog id="newgame" aria-labelledby="newgame-title">
@@ -80,7 +105,7 @@
   </dialog>
 
   <dialog id="level" aria-labelledby="level-title">
-    <h2 id="level-title">Your level and twin</h2>
+    <h2 id="level-title">Your level, twin and coach</h2>
     <p id="level-now"></p>
     <p class="small" id="level-msg" role="status"></p>
     <h3>Pick a level</h3>
@@ -93,6 +118,16 @@
     </div>
     <p class="muted small">This asks chess.com directly, and your username stays on this device.
       chess.com ratings only roughly match this app's, so yours settles over your first games.</p>
+    <h3>Coach</h3>
+    <label class="field">How the coach talks
+      <select id="coach-level">
+        <option value="beginner">Beginner: plain words, one idea at a time</option>
+        <option value="advanced">Advanced: tactics and plans, short lines</option>
+        <option value="competition">Competition: scores and better lines</option>
+      </select>
+    </label>
+    <p class="muted small"><span id="coach-account"></span>
+      <a href="/coach/" id="account-signin" hidden>Sign in</a></p>
     <h3>Your data</h3>
     <p class="muted small" id="twin-now"></p>
     <div class="actions">
@@ -133,8 +168,9 @@
       copy in this app is <a href="https://github.com/nmrugg/stockfish.js/tree/v19.0.1">version 19.0.1</a>
       (the "lite, single-threaded" build). Its license is in
       <a href="vendor/stockfish/COPYING.txt">vendor/stockfish/COPYING.txt</a>.</p>
-    <p class="muted small">Your games, rating and twin are kept on this device only. Nothing is
-      sent anywhere, except that "From chess.com" asks chess.com for your public rating and games.</p>
+    <p class="muted small">Your games, rating and twin are kept on this device only. Signed-in family
+      members' reviews are written by Claude, an AI from Anthropic, which sees only the moves.
+      Read the <a href="/privacy">privacy page</a>.</p>
     <div class="actions"><button type="button" id="btn-about-close" class="primary">Close</button></div>
   </dialog>
 

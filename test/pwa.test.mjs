@@ -1,5 +1,6 @@
 // Run with: node --test
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { appFiles, stamp, version } from '../tools/sw-version.mjs';
@@ -38,4 +39,13 @@ test('sw.js lists every app file, with a version that matches their contents', (
   const files = appFiles();
   assert.ok(files.includes('/') && files.includes('vendor/chess.mjs') && files.includes('src/board.js'));
   assert.equal(source, stamp(source, files, version('.', files)), 'sw.js is out of date: run node tools/sw-version.mjs');
+});
+
+test('the security policy allows the page\'s one inline script and nothing else inline', () => {
+  const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
+  const hash = `'sha256-${createHash('sha256').update(script).digest('base64')}'`;
+  const headers = readFileSync('_headers', 'utf8');
+  assert.ok(headers.includes(hash), `_headers needs ${hash}`);
+  assert.equal(html.match(/<script>/g).length, 1);
+  assert.ok(!/ on[a-z]+="/.test(html), 'no inline event handlers');
 });
