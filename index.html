@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Chess</title>
-  <meta name="description" content="Open-source chess in the browser. Play the computer at your level, or a twin that opens like you.">
+  <meta name="description" content="Open-source chess in the browser. Play the computer at your level, a twin that opens like you, or a friend online with a room code.">
   <meta name="theme-color" content="#0d1117">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
@@ -33,6 +33,13 @@
       <button type="button" id="btn-mute" aria-label="Mute sound" aria-pressed="false">Sound</button>
       <button type="button" id="btn-header" aria-label="Hide the site header" aria-expanded="true">▴</button>
     </div>
+    <div class="live-bar" id="live-bar" hidden>
+      <span class="clocks" id="clocks" hidden><span id="clock-w"></span><span id="clock-b"></span></span>
+      <button type="button" id="btn-share" hidden>Share the code</button>
+      <button type="button" id="btn-draw-accept" class="primary" hidden>Accept the draw</button>
+      <button type="button" id="btn-draw-decline" hidden>Decline</button>
+      <button type="button" id="btn-claim" class="primary" hidden>Claim the win</button>
+    </div>
     <div class="play">
       <div class="board-wrap"><svg id="board" class="board" xmlns="http://www.w3.org/2000/svg"></svg></div>
       <ol id="moves" class="moves" aria-label="Moves so far"></ol>
@@ -41,11 +48,13 @@
 
   <dialog id="menu" aria-labelledby="menu-title">
     <h2 id="menu-title">Chess</h2>
-    <p class="muted">Play the computer at your level or your twin. Tap a piece, then a square, or drag it. After a game, the coach reviews it; tap any move for its view of that move. Live games with a friend come next.</p>
+    <p class="muted">Play the computer at your level, your twin, or a friend online. Tap a piece, then a square, or drag it. After a game, the coach reviews it; tap any move for its view of that move.</p>
     <div class="actions">
       <button type="button" id="btn-new" class="primary">New game</button>
+      <button type="button" id="btn-live">Play a friend online</button>
       <button type="button" id="btn-review" hidden>Review this game</button>
       <button type="button" id="btn-resign" hidden>Resign</button>
+      <button type="button" id="btn-draw" hidden>Offer a draw</button>
       <button type="button" id="btn-level">Your level and twin</button>
       <button type="button" id="btn-save">Save game (PGN)</button>
       <button type="button" id="btn-load">Load a game</button>
@@ -80,6 +89,34 @@
       <button type="button" id="btn-idea-send" class="primary">Send</button>
       <button type="button" id="btn-idea-cancel">Close</button>
     </div>
+  </dialog>
+
+  <dialog id="live" aria-labelledby="live-title">
+    <h2 id="live-title">Play a friend online</h2>
+    <p class="muted small">One of you starts a room and sends the other its code. No sign-in, no
+      chat and no names: you show as White and Black. It's a friendly game on your honour, so
+      hints and the coach wait until it ends.</p>
+    <h3>Start a room</h3>
+    <fieldset class="choices">
+      <legend>You play</legend>
+      <label><input type="radio" name="live-side" value="w"> White</label>
+      <label><input type="radio" name="live-side" value="b"> Black</label>
+      <label><input type="radio" name="live-side" value="random" checked> Either</label>
+    </fieldset>
+    <label class="field">Clock
+      <select id="live-clock">
+        <option value="">No clock</option>
+        <option value="5+3">5 minutes each, plus 3 seconds a move</option>
+        <option value="10+5">10 minutes each, plus 5 seconds a move</option>
+        <option value="15+10">15 minutes each, plus 10 seconds a move</option>
+      </select>
+    </label>
+    <div class="actions"><button type="button" id="btn-live-create" class="primary">Start a room</button></div>
+    <h3>Join a friend's room</h3>
+    <input type="text" id="live-code" class="text" placeholder="Room code" maxlength="9" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Room code">
+    <div class="actions"><button type="button" id="btn-live-join" class="primary">Join</button></div>
+    <p class="small" id="live-msg" role="status"></p>
+    <div class="actions"><button type="button" id="btn-live-close">Close</button></div>
   </dialog>
 
   <dialog id="newgame" aria-labelledby="newgame-title">

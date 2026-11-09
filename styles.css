@@ -63,6 +63,19 @@ body { display: flex; flex-direction: column; height: 100dvh; }
   padding: 6px max(12px, env(safe-area-inset-right)) 6px max(12px, env(safe-area-inset-left));
   border-bottom: 1px solid var(--border);
 }
+.live-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px max(12px, env(safe-area-inset-right)) 6px max(12px, env(safe-area-inset-left));
+  border-bottom: 1px solid var(--border);
+}
+.clocks { display: flex; gap: 12px; margin-right: auto; font-variant-numeric: tabular-nums; font-weight: 600; }
+.clocks span { padding: 2px 8px; border-radius: 6px; border: 1px solid var(--border); }
+.clocks .running { border-color: var(--accent); }
+.clocks .low { color: #e5534b; }
+.live-bar[hidden], .clocks[hidden] { display: none; }
 .status { margin: 0 auto 0 0; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 button {
