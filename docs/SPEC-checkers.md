@@ -1,7 +1,7 @@
-# Checkers and Chinese checkers spec (draft)
+# Checkers and Chinese checkers spec (v1)
 
-Status: draft for the owner, 2026-11-11. Not yet red-teamed. Nothing is built until the owner
-approves this and it is the one active build.
+Status: approved by the owner on 2026-11-11, with every draft answer below taken as the
+decision. Not yet red-teamed. Nothing is built until it is the one active build.
 
 ## What it is
 
@@ -15,11 +15,11 @@ Each can be played against the computer on your device or against a friend in a 
 same as chess. The app keeps its name, icon and address. It stays an installable PWA that works
 offline, with no new third-party code.
 
-## Decisions to make
+## Decisions
 
-| # | Question | Draft answer |
+| # | Question | Answer (owner, 2026-11-11) |
 | --- | --- | --- |
-| 1 | Does a spec for this already exist in the owner's other project? | Assumed not; this is a fresh draft |
+| 1 | Does a spec for this already exist in the owner's other project? | No; this is the spec |
 | 2 | Chinese checkers player count | **2 players** in v1, vs the computer or a friend. 3 and 6 players (with computer players filling seats) later, because live rooms have two seats today |
 | 3 | Claude coach for the new games | **Not in v1.** Hints and a short review come free from the on-device engine. A Claude review needs new replay and fact checks in the Worker, which can come later under the same spend controls |
 | 4 | Ratings | **Not rated.** You pick one of five levels for each game. Your chess rating and twin stay chess-only |
